@@ -11,8 +11,8 @@ pipeline {
         // Stage 1: Checkout code from Git
         stage('Checkout') {
             steps {
-                git branch: 'main', 
-                url: 'https://github.com/yourusername/your-python-repo.git'
+                git branch: 'master', 
+                url: 'https://github.com/siddha200340/your-python-repo.git'
             }
         }
 
