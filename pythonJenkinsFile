@@ -1,0 +1,107 @@
+pipeline {
+    agent any  // Runs on any available Jenkins agent
+
+    environment {
+        // Set Python version (adjust as needed)
+        PYTHON = 'python3.9'
+        VENV_DIR = 'venv'
+    }
+
+    stages {
+        // Stage 1: Checkout code from Git
+        stage('Checkout') {
+            steps {
+                git branch: 'main', 
+                url: 'https://github.com/yourusername/your-python-repo.git'
+            }
+        }
+
+        // Stage 2: Set up a Python virtual environment
+        stage('Setup Virtualenv') {
+            steps {
+                sh """
+                    ${PYTHON} -m venv ${VENV_DIR}
+                    . ${VENV_DIR}/bin/activate
+                    pip install --upgrade pip
+                """
+            }
+        }
+
+        // Stage 3: Install dependencies
+        stage('Install Dependencies') {
+            steps {
+                sh """
+                    . ${VENV_DIR}/bin/activate
+                    pip install -r requirements.txt
+                """
+            }
+        }
+
+        // Stage 4: Run linting (e.g., flake8)
+        stage('Lint') {
+            steps {
+                sh """
+                    . ${VENV_DIR}/bin/activate
+                    pip install flake8
+                    flake8 . --count --show-source --statistics
+                """
+            }
+        }
+
+        // Stage 5: Run unit tests (pytest)
+        stage('Test') {
+            steps {
+                sh """
+                    . ${VENV_DIR}/bin/activate
+                    pip install pytest pytest-cov
+                    pytest --cov=./ --cov-report=xml:coverage.xml
+                """
+            }
+            post {
+                always {
+                    // Archive test results (for Jenkins reports)
+                    junit '**/test-results.xml'
+                    cobertura 'coverage.xml'
+                }
+            }
+        }
+
+        // Stage 6: Build & package (e.g., Docker or wheel)
+        stage('Build') {
+            steps {
+                sh """
+                    . ${VENV_DIR}/bin/activate
+                    python setup.py sdist bdist_wheel
+                """
+            }
+        }
+
+        // Stage 7: Deploy (example: push to PyPI or a server)
+        stage('Deploy') {
+            when {
+                branch 'main'  // Only deploy from main branch
+            }
+            steps {
+                sh """
+                    . ${VENV_DIR}/bin/activate
+                    twine upload --repository-url https://upload.pypi.org/legacy/ dist/*
+                """
+            }
+        }
+    }
+
+    post {
+        always {
+            // Clean up virtualenv
+            sh 'rm -rf ${VENV_DIR}'
+        }
+        success {
+            slackSend channel: '#devops', 
+                     message: "Pipeline SUCCESS: ${env.JOB_NAME} - ${env.BUILD_NUMBER}"
+        }
+        failure {
+            slackSend channel: '#devops', 
+                     message: "Pipeline FAILED: ${env.JOB_NAME} - ${env.BUILD_NUMBER}"
+        }
+    }
+}
